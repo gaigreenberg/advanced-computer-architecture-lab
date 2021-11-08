@@ -130,76 +130,220 @@ static void dump_sram(sp_t *sp)
 	fclose(fp);
 }
 
-
-static void sp_ctl(sp_t *sp)
+//function that updates trace file for generic functions
+static void update_trace(FILE* trace_fp, sp_registers_t* spro)
 {
-	sp_registers_t *spro = sp->spro;
-	sp_registers_t *sprn = sp->sprn;
-	int i;
+    fprintf(trace_fp, "--- instruction %i (%04x) @ PC %i (%04x) -----------------------------------------------------------\n",
+            (spro->cycle_counter) / 6 - 1, (spro->cycle_counter) / 6 - 1, spro->pc, spro->pc);
+    fprintf(trace_fp, "pc = %04d, inst = %08x, opcode = %i (%s), dst = %i, src0 = %i, src1 = %i, immediate = %08x\n",
+            spro->pc, spro->inst, spro->opcode, opcode_name[spro->opcode], spro->dst, spro->src0, spro->src1, spro->immediate);
+    fprintf(trace_fp, "r[0] = 00000000 r[1] = %08x r[2] = %08x r[3] = %08x \n", (spro->immediate == 0) ? 0 : spro->immediate, spro->r[2], spro->r[3]);
+    fprintf(trace_fp, "r[4] = %08x r[5] = %08x r[6] = %08x r[7] = %08x \n\n", spro->r[4], spro->r[5], spro->r[6], spro->r[7]);
+}
 
-	// sp_ctl
 
-	fprintf(cycle_trace_fp, "cycle %d\n", spro->cycle_counter);
-	for (i = 2; i <= 7; i++)
-		fprintf(cycle_trace_fp, "r%d %08x\n", i, spro->r[i]);
-	fprintf(cycle_trace_fp, "pc %08x\n", spro->pc);
-	fprintf(cycle_trace_fp, "inst %08x\n", spro->inst);
-	fprintf(cycle_trace_fp, "opcode %08x\n", spro->opcode);
-	fprintf(cycle_trace_fp, "dst %08x\n", spro->dst);
-	fprintf(cycle_trace_fp, "src0 %08x\n", spro->src0);
-	fprintf(cycle_trace_fp, "src1 %08x\n", spro->src1);
-	fprintf(cycle_trace_fp, "immediate %08x\n", spro->immediate);
-	fprintf(cycle_trace_fp, "alu0 %08x\n", spro->alu0);
-	fprintf(cycle_trace_fp, "alu1 %08x\n", spro->alu1);
-	fprintf(cycle_trace_fp, "aluout %08x\n", spro->aluout);
-	fprintf(cycle_trace_fp, "cycle_counter %08x\n", spro->cycle_counter);
-	fprintf(cycle_trace_fp, "ctl_state %08x\n\n", spro->ctl_state);
+static void sp_ctl(sp_t *sp) {
+    sp_registers_t *spro = sp->spro;
+    sp_registers_t *sprn = sp->sprn;
+    int i;
 
-	sprn->cycle_counter = spro->cycle_counter + 1;
+    // sp_ctl
 
-	switch (spro->ctl_state) {
-	case CTL_STATE_IDLE:
-		sprn->pc = 0;
-		if (sp->start)
-			sprn->ctl_state = CTL_STATE_FETCH0;
-		break;
+    fprintf(cycle_trace_fp, "cycle %d\n", spro->cycle_counter);
+    for (i = 2; i <= 7; i++)
+        fprintf(cycle_trace_fp, "r%d %08x\n", i, spro->r[i]);
+    fprintf(cycle_trace_fp, "pc %08x\n", spro->pc);
+    fprintf(cycle_trace_fp, "inst %08x\n", spro->inst);
+    fprintf(cycle_trace_fp, "opcode %08x\n", spro->opcode);
+    fprintf(cycle_trace_fp, "dst %08x\n", spro->dst);
+    fprintf(cycle_trace_fp, "src0 %08x\n", spro->src0);
+    fprintf(cycle_trace_fp, "src1 %08x\n", spro->src1);
+    fprintf(cycle_trace_fp, "immediate %08x\n", spro->immediate);
+    fprintf(cycle_trace_fp, "alu0 %08x\n", spro->alu0);
+    fprintf(cycle_trace_fp, "alu1 %08x\n", spro->alu1);
+    fprintf(cycle_trace_fp, "aluout %08x\n", spro->aluout);
+    fprintf(cycle_trace_fp, "cycle_counter %08x\n", spro->cycle_counter);
+    fprintf(cycle_trace_fp, "ctl_state %08x\n\n", spro->ctl_state);
 
-	case CTL_STATE_FETCH0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
+    sprn->cycle_counter = spro->cycle_counter + 1;
 
-	case CTL_STATE_FETCH1:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
+    switch (spro->ctl_state) {
+        case CTL_STATE_IDLE:
+            sprn->pc = 0;
+            if (sp->start)
+                sprn->ctl_state = CTL_STATE_FETCH0;
+            break;
 
-	case CTL_STATE_DEC0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
+        case CTL_STATE_FETCH0:
+            llsim_mem_read(sp->sram, spro->pc); //read old PC from SRAM
+            sprn->ctl_state = CTL_STATE_FETCH1; //Setting the next state
+            break;
 
-	case CTL_STATE_DEC1:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
+        case CTL_STATE_FETCH1:
+            sprn->inst = llsim_mem_extract_dataout(sp->sram, 31, 0);//get instruction from SRAM
+            sprn->ctl_state = CTL_STATE_DEC0; //Setting the next state
+            break;
 
-	case CTL_STATE_EXEC0:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
+        case CTL_STATE_DEC0:
+            sprn->opcode = (spro->inst >> 25) & 31; //get opcode - bits[31:26]
+            sprn->dst = (spro->inst >> 22) & 7; //get dst - bits[25:23]
+            sprn->src0 = (spro->inst >> 19) & 7; //get src0 bits[22:20]
+            sprn->src1 = (spro->inst >> 16) & 7; //get src1 - bits[19:17]
+            sprn->immediate = spro->inst & 65535; //get immediate - first 16 bits
+            //sign extension for immediate in cae of neg
+            if ((spro->inst & 32768) != 0) {
+                sprn->immediate = sprn->immediate + (65535 << 16);
+            }
+            sprn->ctl_state = CTL_STATE_DEC1; //Setting the next state
+            break;
 
-	case CTL_STATE_EXEC1:
-		/***********************************
-		 * TODO: fill here
-		 **********************************/
-		break;
-	}
+        case CTL_STATE_DEC1:
+            if (spro->opcode == LHI) //LHI order
+            {
+                sprn->alu0 = (spro->r[spro->dst]) && 65535;
+                sprn->alu1 = spro->immediate;
+            } else {
+                if (spro->src0 == 0)
+                    sprn->alu0 = 0;
+                else if (spro->src0 == 1)
+                    sprn->alu0 = spro->immediate;
+                else
+                    sprn->alu0 = spro->r[spro->src0];
+                if (spro->src1 == 0)
+                    sprn->alu1 = 0;
+                else if (spro->src1 == 1)
+                    sprn->alu1 = spro->immediate;
+                else
+                    sprn->alu1 = spro->r[spro->src1];
+            }
+            sprn->ctl_state = CTL_STATE_EXEC0; //Setting the next state
+            break;
+
+        case CTL_STATE_EXEC0:
+            switch (spro->opcode) {
+                case ADD:
+                    sprn->aluout = spro->alu0 + spro->alu1;
+                    break;
+                case SUB:
+                    sprn->aluout = spro->alu0 - spro->alu1;
+                    break;
+                case RSF:
+                    sprn->aluout = spro->alu1 >> spro->alu0;
+                    break;
+                case LSF:
+                    sprn->aluout = spro->alu1 << spro->alu0;
+                    break;
+                case OR:
+                    sprn->aluout = spro->alu0 | spro->alu1;
+                    break;
+                case XOR:
+                    sprn->aluout = spro->alu0 ^ spro->alu1;
+                    break;
+                case AND:
+                    sprn->aluout = spro->alu0 & spro->alu1;
+                    break;
+                case LHI:
+                    sprn->aluout = (spro->alu0 & 65535) + (spro->alu1 << 16);
+                    break;
+                case LD:
+                    llsim_mem_read(sp->sram, spro->alu1);
+                    break;
+                case JLT:
+                    if (spro->alu0 < spro->alu1)
+                        sprn->aluout = 1;
+                    else
+                        sprn->aluout = 0;
+                    break;
+                case ST:
+                    sprn->aluout = 0;
+                    break;
+                case JLE:
+                    if (spro->alu0 <= spro->alu1)
+                        sprn->aluout = 1;
+                    else
+                        sprn->aluout = 0;
+                    break;
+                case JNE:
+                    if (spro->alu0 != spro->alu1)
+                        sprn->aluout = 1;
+                    else
+                        sprn->aluout = 0;
+                    break;
+                case JEQ:
+                    if (spro->alu0 == spro->alu1)
+                        sprn->aluout = 1;
+                    else
+                        sprn->aluout = 0;
+                    break;
+                case JIN:
+                    sprn->aluout = 1;
+                    break;
+                case HLT:
+                    sprn->aluout = 0;
+                    break;
+                default:
+                    break;
+            }
+            sprn->ctl_state = CTL_STATE_EXEC1; //Setting the next state
+            break;
+    }
+    break;
+
+    case CTL_STATE_EXEC1:
+        update_trace(inst_trace_fp, spro);
+    sprn->ctl_state = CTL_STATE_FETCH0; //Setting the next state
+    switch (spro->opcode) {
+        case HLT: //need to do all the program ending functions
+            fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
+            fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc, (spro->cycle_counter) / 6);
+            dump_sram(sp);
+            sp->start = 0;
+            sprn->ctl_state = CTL_STATE_IDLE; //Setting the next state to the correct one
+            llsim_stop();
+            break;
+
+        case LD:
+            int extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
+                    extracted);//update trace
+            sprn->r[spro->dst] = extracted;//update reg
+            sprn->pc = spro->pc + 1;//increment PC
+            break;
+
+        case ST:
+            fprintf(inst_trace_fp, ">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n",
+                    (spro->src1 != 1) ? spro->r[spro->src1] : spro->immediate, spro->src0,
+                    spro->r[spro->src0]); //update trace
+            //write operation as stated in the instructions page
+            llsim_mem_write(sp->sram, spro->alu1);
+            llsim_mem_set_datain(sp->sram, spro->alu0, 31, 0);
+            sprn->pc = spro->pc + 1;//increment PC
+            break;
+
+        case JLT:
+        case JLE:
+        case JEQ:
+        case JNE:
+        case JIN: //handle branch instructions
+            if (spro->aluout != 1) { //branch not taken
+                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                        spro->r[spro->src0], spro->r[spro->src1], spro->pc + 1);
+                sprn.pc = spro.pc + 1;
+            } else { //branch is taken
+                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                        spro->r[spro->src0], spro->r[spro->src1], spro->immediate); //update trace
+                sprn->r[7] = spro->pc; //update r[7] with the pc of the jump taken
+                sprn->pc = spro->immediate; //update pc according to jump
+            }
+            break;
+
+        default: //handle simple arithmetic opcode
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->dst, spro->alu0,
+                    opcode_name[spro->opcode], spro->alu1);//update trace
+            sprn->r[spro->dst] = spro->aluout; //update register
+            sprn->pc = spro->pc + 1; //increment PC
+            break;
+    }
 }
 
 static void sp_run(llsim_unit_t *unit)
