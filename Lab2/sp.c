@@ -3,8 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h> 
-#include <sys/socket.h>
-#include <netinet/in.h>
+//#include <sys/socket.h> -REMEMBER TO UNCOMMENT!!!!!!!!!!!!!
+//#include <netinet/in.h> -REMEMBER TO UNCOMMENT!!!!!!!!!!!!!
 
 #include "llsim.h"
 
@@ -286,63 +286,63 @@ static void sp_ctl(sp_t *sp) {
             }
             sprn->ctl_state = CTL_STATE_EXEC1; //Setting the next state
             break;
-    }
-    break;
 
-    case CTL_STATE_EXEC1:
-        update_trace(inst_trace_fp, spro);
-    sprn->ctl_state = CTL_STATE_FETCH0; //Setting the next state
-    switch (spro->opcode) {
-        case HLT: //need to do all the program ending functions
-            fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
-            fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc, (spro->cycle_counter) / 6);
-            dump_sram(sp);
-            sp->start = 0;
-            sprn->ctl_state = CTL_STATE_IDLE; //Setting the next state to the correct one
-            llsim_stop();
-            break;
+        case CTL_STATE_EXEC1:
+            update_trace(inst_trace_fp, spro);
+            sprn->ctl_state = CTL_STATE_FETCH0; //Setting the next state
+            switch (spro->opcode) {
+                case HLT: //need to do all the program ending functions
+                    fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
+                    fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc,
+                            (spro->cycle_counter) / 6);
+                    dump_sram(sp);
+                    sp->start = 0;
+                    sprn->ctl_state = CTL_STATE_IDLE; //Setting the next state to the correct one
+                    llsim_stop();
+                    break;
 
-        case LD:
-            int extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
-            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
-                    extracted);//update trace
-            sprn->r[spro->dst] = extracted;//update reg
-            sprn->pc = spro->pc + 1;//increment PC
-            break;
+                case LD:
+                    int extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
+                    fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
+                            extracted);//update trace
+                    sprn->r[spro->dst] = extracted;//update reg
+                    sprn->pc = spro->pc + 1;//increment PC
+                    break;
 
-        case ST:
-            fprintf(inst_trace_fp, ">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n",
-                    (spro->src1 != 1) ? spro->r[spro->src1] : spro->immediate, spro->src0,
-                    spro->r[spro->src0]); //update trace
-            //write operation as stated in the instructions page
-            llsim_mem_write(sp->sram, spro->alu1);
-            llsim_mem_set_datain(sp->sram, spro->alu0, 31, 0);
-            sprn->pc = spro->pc + 1;//increment PC
-            break;
+                case ST:
+                    fprintf(inst_trace_fp, ">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n",
+                            (spro->src1 != 1) ? spro->r[spro->src1] : spro->immediate, spro->src0,
+                            spro->r[spro->src0]); //update trace
+                    //write operation as stated in the instructions page
+                    llsim_mem_write(sp->sram, spro->alu1);
+                    llsim_mem_set_datain(sp->sram, spro->alu0, 31, 0);
+                    sprn->pc = spro->pc + 1;//increment PC
+                    break;
 
-        case JLT:
-        case JLE:
-        case JEQ:
-        case JNE:
-        case JIN: //handle branch instructions
-            if (spro->aluout != 1) { //branch not taken
-                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
-                        spro->r[spro->src0], spro->r[spro->src1], spro->pc + 1);
-                sprn.pc = spro.pc + 1;
-            } else { //branch is taken
-                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
-                        spro->r[spro->src0], spro->r[spro->src1], spro->immediate); //update trace
-                sprn->r[7] = spro->pc; //update r[7] with the pc of the jump taken
-                sprn->pc = spro->immediate; //update pc according to jump
+                case JLT:
+                case JLE:
+                case JEQ:
+                case JNE:
+                case JIN: //handle branch instructions
+                    if (spro->aluout != 1) { //branch not taken
+                        fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                                spro->r[spro->src0], spro->r[spro->src1], spro->pc + 1);
+                        sprn->pc = spro->pc + 1;
+                    } else { //branch is taken
+                        fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                                spro->r[spro->src0], spro->r[spro->src1], spro->immediate); //update trace
+                        sprn->r[7] = spro->pc; //update r[7] with the pc of the jump taken
+                        sprn->pc = spro->immediate; //update pc according to jump
+                    }
+                    break;
+
+                default: //handle simple arithmetic opcode
+                    fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->dst, spro->alu0,
+                            opcode_name[spro->opcode], spro->alu1);//update trace
+                    sprn->r[spro->dst] = spro->aluout; //update register
+                    sprn->pc = spro->pc + 1; //increment PC
+                    break;
             }
-            break;
-
-        default: //handle simple arithmetic opcode
-            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->dst, spro->alu0,
-                    opcode_name[spro->opcode], spro->alu1);//update trace
-            sprn->r[spro->dst] = spro->aluout; //update register
-            sprn->pc = spro->pc + 1; //increment PC
-            break;
     }
 }
 
