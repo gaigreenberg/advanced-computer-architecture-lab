@@ -3,8 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h> 
-//#include <sys/socket.h> -REMEMBER TO UNCOMMENT!!!!!!!!!!!!!
-//#include <netinet/in.h> -REMEMBER TO UNCOMMENT!!!!!!!!!!!!!
+#include <sys/socket.h>
+#include <netinet/in.h> 
 
 #include "llsim.h"
 
@@ -162,6 +162,7 @@ static void update_trace(FILE* trace_fp, sp_registers_t* spro)
 
 
 static void sp_ctl(sp_t *sp) {
+    int extracted;    
     sp_registers_t *spro = sp->spro;
     sp_registers_t *sprn = sp->sprn;
     int i;
@@ -274,7 +275,7 @@ static void sp_ctl(sp_t *sp) {
                         sprn->aluout = 0;
                     break;
                 case ST:
-                    sprn->aluout = 0;
+                    //sprn->aluout = 0;
                     break;
                 case JLE:
                     if (spro->alu0 <= spro->alu1)
@@ -298,7 +299,7 @@ static void sp_ctl(sp_t *sp) {
                     sprn->aluout = 1;
                     break;
                 case HLT:
-                    sprn->aluout = 0;
+                    //sprn->aluout = 0;
                     break;
                 default:
                     break;
@@ -321,7 +322,7 @@ static void sp_ctl(sp_t *sp) {
                     break;
 
                 case LD:
-                    int extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
+                    extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
                     fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
                             extracted);//update trace
                     sprn->r[spro->dst] = extracted;//update reg
