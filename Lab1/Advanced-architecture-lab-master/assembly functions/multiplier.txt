@@ -1,0 +1,23 @@
+ADD, 6, 0, 1, 1      // 0: R6 = 1 constant
+ADD, 4, 0, 0, 0      // 1:  set R4 = 0 - our counter
+LD,  2, 0, 1, 1000   // 2: load R2 = mem[1000] (X)
+LD,  3, 0, 1, 1001   // 3: load R3 = mem[1001] (Y)
+JLT, 0, 0, 2, 7      // 4: if ( 0 < R2 ) : jump to line 7
+ADD, 4, 0, 1, 1      // 5: R4 ++ (remember one was negative )
+SUB, 2, 0, 2, 0      // 6: R2 = -R2 (make it abs )
+JLT, 0, 0, 3, 10     // 7: if ( 0 < R3 ) : jump to line 10
+ADD, 4, 0, 1, 1      // 8: R4 ++ (remember second was negative )
+SUB, 3, 0, 3, 0      // 9: R3 = -R3 (make it abs )
+ADD, 7, 0, 0, 0      // 10: R7 = 0 (result)
+JEQ, 0, 0, 3,        // 11: if(R3 ==0 ) jump to the storing line 21
+AND, 5, 3, 1, 1      // 12:  R5 = R3 & 0x1 (R5 == 1 if R3 is odd)  LOOP
+JEQ, 0, 5, 0, 16     // 13:  if ( R5 == 0  {R3 is even}) jump to 16
+ADD, 7, 7, 2, 0      // 14: R7 = R7 + R2 (result += X )
+SUB, 3, 3, 1, 1      // 15: R3 -= 1 (Y--)
+LSF, 7, 7, 1, 1      // 16: R7 = R7 << 1 ( result * 2 )
+RSF, 3, 3, 1, 1      // 17: R3 = R3 >> 1 ( Y / 2 )
+JNE, 0, 0, 3, 12     // 18: if( R3 != 0 ) jump to loop 12
+JNE, 0, 4, 6, 21     // 19: if( R4 != R6 ) jump to storing ( else means the output should be negative)
+SUB, 7, 0, 3, 0      // 20: R7 = - R7
+ST,  0, 7, 1, 1002   // 21: store R7 (result) ro mem[1002]
+HLT                  // 22: END
