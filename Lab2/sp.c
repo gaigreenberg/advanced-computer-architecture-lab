@@ -65,7 +65,21 @@ typedef struct sp_registers_s {
 	#define CTL_STATE_DEC1		4
 	#define CTL_STATE_EXEC0		5
 	#define CTL_STATE_EXEC1		6
+
+    // dma states
+    #define DMA_STATE_IDLE 0
+    #define DMA_STATE_COPY 1
+    #define DMA_STATE_SKIP 2
+
 } sp_registers_t;
+
+typedef struct dma{
+    int source_address;
+    int dest_address;
+    int length;
+    int completed; //counts how many words were copied already
+    int state;
+}dma_struct;
 
 /*
  * Master structure
@@ -78,10 +92,13 @@ typedef struct sp_s {
 	unsigned int memory_image[SP_SRAM_HEIGHT];
 	int memory_image_size;
 
+    dma_struct* dma;
+
 	sp_registers_t *spro, *sprn;
 	
 	int start;
 } sp_t;
+
 
 static void sp_reset(sp_t *sp)
 {
@@ -103,6 +120,8 @@ static void sp_reset(sp_t *sp)
 #define LHI 7
 #define LD 8
 #define ST 9
+#define CPY 10  //opcode for copying
+#define DMS 11  // opcode for getting the dma status -dms
 #define JLT 16
 #define JLE 17
 #define JEQ 18
