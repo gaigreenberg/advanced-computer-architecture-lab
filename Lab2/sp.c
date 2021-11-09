@@ -17,6 +17,11 @@
 int nr_simulated_instructions = 0;
 FILE *inst_trace_fp = NULL, *cycle_trace_fp = NULL;
 
+//DMA globals
+int dma_init = 0; // 1 if a CPY operation was given
+int mem_free = 0; //  1 if the memory avaiable for the dma
+void dma_run(sp_s *sp, dma_struct* dma); //function declaration
+
 typedef struct sp_registers_s {
 	// 6 32 bit registers (r[0], r[1] don't exist)
 	int r[8];
@@ -68,8 +73,9 @@ typedef struct sp_registers_s {
 
     // dma states
     #define DMA_STATE_IDLE 0
-    #define DMA_STATE_COPY 1
-    #define DMA_STATE_SKIP 2
+    #define DMA_STATE_READ 1
+    #define DMA_STATE_WRITE 2
+    #define DMA_STATE_WAIT 3
 
 } sp_registers_t;
 
@@ -77,9 +83,10 @@ typedef struct dma{
     int source_address;
     int dest_address;
     int length;
-    int completed; //counts how many words were copied already
+    int completed  ; //counts how many words were copied already
     int state;
 }dma_struct;
+
 
 /*
  * Master structure
@@ -130,7 +137,7 @@ static void sp_reset(sp_t *sp)
 #define HLT 24
 
 static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR", "LHI",
-				 "LD", "ST", "U", "U", "U", "U", "U", "U",
+				 "LD", "ST", "CPY", "DMS", "U", "U", "U", "U",
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
@@ -164,7 +171,7 @@ static void update_trace(FILE* trace_fp, sp_registers_t* spro)
 static void sp_ctl(sp_t *sp) {
     sp_registers_t *spro = sp->spro;
     sp_registers_t *sprn = sp->sprn;
-    int i;
+    int i, length, diff;
 
     // sp_ctl
 
@@ -194,16 +201,23 @@ static void sp_ctl(sp_t *sp) {
             break;
 
         case CTL_STATE_FETCH0:
+            mem_free = 0;
+            dma_run(sp, sp-> dma);
             llsim_mem_read(sp->sram, spro->pc); //read old PC from SRAM
             sprn->ctl_state = CTL_STATE_FETCH1; //Setting the next state
             break;
 
         case CTL_STATE_FETCH1:
+            mem_free = 1;
+            dma_run(sp, sp-> dma);
             sprn->inst = llsim_mem_extract_dataout(sp->sram, 31, 0);//get instruction from SRAM
             sprn->ctl_state = CTL_STATE_DEC0; //Setting the next state
             break;
 
         case CTL_STATE_DEC0:
+            mem_free = 1;
+            dma_run(sp, sp-> dma);
+
             sprn->opcode = (spro->inst >> 25) & 31; //get opcode - bits[31:26]
             sprn->dst = (spro->inst >> 22) & 7; //get dst - bits[25:23]
             sprn->src0 = (spro->inst >> 19) & 7; //get src0 bits[22:20]
@@ -217,6 +231,27 @@ static void sp_ctl(sp_t *sp) {
             break;
 
         case CTL_STATE_DEC1:
+            if(spro->opcode == LD){
+                mem_free = 0;
+            }else{
+                mem_free = 1;
+            }
+            if(spro->opcode == CPY && dma_init == 0){
+                diff = spro->r[src0] - spro->r[src1];
+                diff = abs(diff);
+                if(diff < spro->immediate){
+                    length = diff;
+                } else{
+                    length = spro->immediate;
+                }
+                dma_init = 1;
+                sp->dma->dest_address = spro->r[spro->src1];
+                sp->dma->source_address = spro->r[spro->src0];
+                sp->dma->length = length;
+                sp->dma->completed = 0 ;
+            }
+            dma_run(sp, sp-> dma);
+
             if (spro->opcode == LHI) //LHI order
             {
                 sprn->alu0 = (spro->r[spro->dst]) && 65535;
@@ -239,6 +274,14 @@ static void sp_ctl(sp_t *sp) {
             break;
 
         case CTL_STATE_EXEC0:
+            if(spro->opcode == LD || spro->opcode == ST){
+                mem_free = 0;
+            }else{
+                mem_free = 1;
+            }
+            dma_run(sp, sp-> dma);
+
+
             switch (spro->opcode) {
                 case ADD:
                     sprn->aluout = spro->alu0 + spro->alu1;
@@ -300,6 +343,8 @@ static void sp_ctl(sp_t *sp) {
                 case HLT:
                     sprn->aluout = 0;
                     break;
+                case DMS:
+                    sprn->aluout = dma_init ;
                 default:
                     break;
             }
@@ -309,9 +354,21 @@ static void sp_ctl(sp_t *sp) {
     break;
 
     case CTL_STATE_EXEC1:
+        mem_free = 0;
+        dma_run(sp, sp-> dma);
+
         update_trace(inst_trace_fp, spro);
     sprn->ctl_state = CTL_STATE_FETCH0; //Setting the next state
     switch (spro->opcode) {
+        case DMS:
+            sprn->r[sp->dma->dest_address] = spro->aluout;
+            fprintf(inst_trace_fp, ">>>> EXEC: DMS result saved to register %d <<<<\n", sp->dma->dest_address);
+            break;
+
+        case CPY:
+            fprintf(inst_trace_fp, ">>>> EXEC: CPY from address %04x to adress %04x with length of %d words <<<\n", sp->dma->source_address, sp->dma->dest_address, sp->dma->length);
+
+
         case HLT: //need to do all the program ending functions
             fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->pc);
             fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->pc, (spro->cycle_counter) / 6);
@@ -466,4 +523,53 @@ void sp_init(char *program_name)
 	sp->start = 1;
 
 	sp_register_all_registers(sp);
+}
+
+void dma_run(sp_s *sp, dma_struct *dma){
+    switch(dma->state)
+    {
+        case DMA_STATE_IDLE:
+            if(dma_init == 1)   // copy request was init
+            {
+                dma->state = DMA_STATE_READ ;
+            }
+            break;
+
+        case DMA_STATE_READ:
+            if(mem_free){
+                llsim_mem_read(sp->sram,dma->source_address);
+                dma->state = DMA_STATE_WRITE;
+            }else{
+                dma->state = DMA_STATE_WAIT
+            }
+            break;
+
+        case DMA_STATE_WRITE:
+            int copied = llsim_mem_extract_dataout(sp->sram, 31, 0);
+            llsim_mem_set_datain(sp->sram, copied, 31, 0);
+            llsim_mem_write(sp->sram, dma->dest_address);
+
+            dma->completed ++;
+            if(dma->completed == dma->length){ //all the data was copied
+                dma->state = DMA_STATE_IDLE;
+                dma_init = 0 ;
+            } else {
+                if(mem_free){
+                    dma->state = DMA_STATE_READ;
+                }else{
+                    dma->state = DMA_STATE_WAIT;
+                }
+                dma->dest_address ++ ;
+                dma->source_address ++;
+            } break;
+
+        case DMA_STATE_WAIT:
+            if(mem_free){
+                dma->state = DMA_STATE_READ;
+            }
+            break;
+    }
+
+
+
 }
