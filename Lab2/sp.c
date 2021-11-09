@@ -137,7 +137,7 @@ static void sp_reset(sp_t *sp)
 #define HLT 24
 
 static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR", "LHI",
-				 "LD", "ST", "CPY", "DMS", "U", "U", "U", "U",
+				 "LD", "ST", "U", "U", "U", "U", "U", "U",
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
@@ -169,6 +169,7 @@ static void update_trace(FILE* trace_fp, sp_registers_t* spro)
 
 
 static void sp_ctl(sp_t *sp) {
+    int extracted;
     sp_registers_t *spro = sp->spro;
     sp_registers_t *sprn = sp->sprn;
     int i, length, diff;
@@ -317,7 +318,7 @@ static void sp_ctl(sp_t *sp) {
                         sprn->aluout = 0;
                     break;
                 case ST:
-                    sprn->aluout = 0;
+                    //sprn->aluout = 0;
                     break;
                 case JLE:
                     if (spro->alu0 <= spro->alu1)
@@ -341,7 +342,7 @@ static void sp_ctl(sp_t *sp) {
                     sprn->aluout = 1;
                     break;
                 case HLT:
-                    sprn->aluout = 0;
+                    //sprn->aluout = 0;
                     break;
                 case DMS:
                     sprn->aluout = dma_init ;
@@ -378,47 +379,48 @@ static void sp_ctl(sp_t *sp) {
             llsim_stop();
             break;
 
-        case LD:
-            int extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
-            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
-                    extracted);//update trace
-            sprn->r[spro->dst] = extracted;//update reg
-            sprn->pc = spro->pc + 1;//increment PC
-            break;
+                case LD:
+                    extracted = llsim_mem_extract_dataout(sp->sram, 31, 0);//fetch data from mem
+                    fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->dst, spro->alu1,
+                            extracted);//update trace
+                    sprn->r[spro->dst] = extracted;//update reg
+                    sprn->pc = spro->pc + 1;//increment PC
+                    break;
 
-        case ST:
-            fprintf(inst_trace_fp, ">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n",
-                    (spro->src1 != 1) ? spro->r[spro->src1] : spro->immediate, spro->src0,
-                    spro->r[spro->src0]); //update trace
-            //write operation as stated in the instructions page
-            llsim_mem_write(sp->sram, spro->alu1);
-            llsim_mem_set_datain(sp->sram, spro->alu0, 31, 0);
-            sprn->pc = spro->pc + 1;//increment PC
-            break;
+                case ST:
+                    fprintf(inst_trace_fp, ">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n",
+                            (spro->src1 != 1) ? spro->r[spro->src1] : spro->immediate, spro->src0,
+                            spro->r[spro->src0]); //update trace
+                    //write operation as stated in the instructions page
+                    llsim_mem_write(sp->sram, spro->alu1);
+                    llsim_mem_set_datain(sp->sram, spro->alu0, 31, 0);
+                    sprn->pc = spro->pc + 1;//increment PC
+                    break;
 
-        case JLT:
-        case JLE:
-        case JEQ:
-        case JNE:
-        case JIN: //handle branch instructions
-            if (spro->aluout != 1) { //branch not taken
-                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
-                        spro->r[spro->src0], spro->r[spro->src1], spro->pc + 1);
-                sprn.pc = spro.pc + 1;
-            } else { //branch is taken
-                fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
-                        spro->r[spro->src0], spro->r[spro->src1], spro->immediate); //update trace
-                sprn->r[7] = spro->pc; //update r[7] with the pc of the jump taken
-                sprn->pc = spro->immediate; //update pc according to jump
+                case JLT:
+                case JLE:
+                case JEQ:
+                case JNE:
+                case JIN: //handle branch instructions
+                    if (spro->aluout != 1) { //branch not taken
+                        fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                                spro->r[spro->src0], spro->r[spro->src1], spro->pc + 1);
+                        sprn->pc = spro->pc + 1;
+                    } else { //branch is taken
+                        fprintf(inst_trace_fp, ">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->opcode],
+                                spro->r[spro->src0], spro->r[spro->src1], spro->immediate); //update trace
+                        sprn->r[7] = spro->pc; //update r[7] with the pc of the jump taken
+                        sprn->pc = spro->immediate; //update pc according to jump
+                    }
+                    break;
+
+                default: //handle simple arithmetic opcode
+                    fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->dst, spro->alu0,
+                            opcode_name[spro->opcode], spro->alu1);//update trace
+                    sprn->r[spro->dst] = spro->aluout; //update register
+                    sprn->pc = spro->pc + 1; //increment PC
+                    break;
             }
-            break;
-
-        default: //handle simple arithmetic opcode
-            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->dst, spro->alu0,
-                    opcode_name[spro->opcode], spro->alu1);//update trace
-            sprn->r[spro->dst] = spro->aluout; //update register
-            sprn->pc = spro->pc + 1; //increment PC
-            break;
     }
 }
 
@@ -456,7 +458,7 @@ static void sp_generate_sram_memory_image(sp_t *sp, char *program_name)
         }
 	sp->memory_image_size = addr;
 
-        fprintf(inst_trace_fp, "program %s loaded, %d lines\n", program_name, addr);
+        fprintf(inst_trace_fp, "program %s loaded, %d lines\n\n", program_name, addr);
 
 	for (i = 0; i < sp->memory_image_size; i++)
 		llsim_mem_inject(sp->sram, i, sp->memory_image[i], 31, 0);
