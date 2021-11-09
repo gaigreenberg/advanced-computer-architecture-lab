@@ -137,7 +137,7 @@ static void sp_reset(sp_t *sp)
 #define HLT 24
 
 static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR", "LHI",
-				 "LD", "ST", "U", "U", "U", "U", "U", "U",
+				 "LD", "ST", "CPY", "DMS", "U", "U", "U", "U",
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
