@@ -291,10 +291,10 @@ static void sp_ctl(sp_t *sp) {
                     sprn->aluout = spro->alu0 - spro->alu1;
                     break;
                 case RSF:
-                    sprn->aluout = spro->alu1 >> spro->alu0;
+                    sprn->aluout = spro->alu0 >> spro->alu1;
                     break;
                 case LSF:
-                    sprn->aluout = spro->alu1 << spro->alu0;
+                    sprn->aluout = spro->alu0 << spro->alu1;
                     break;
                 case OR:
                     sprn->aluout = spro->alu0 | spro->alu1;
