@@ -1,4 +1,4 @@
-`include "fulladder.v"
+//`include "fulladder.v"
 module main;
 //FILL HERE
 reg a,b,ci;
@@ -7,7 +7,7 @@ fulladder fulladder_test(sum,carry,a,b,ci);
 
 always@(sum or carry or b)
 begin
-$display("time=%d: %b + %b + %b = %b, carry = %b\n", $time, a, b, ci, sum, carry);
+$display("time=%d: %b(a) + %b(b) + %b(ci) = %b, carry = %b\n", $time, a, b, ci, sum, carry);
 end
 
 initial
