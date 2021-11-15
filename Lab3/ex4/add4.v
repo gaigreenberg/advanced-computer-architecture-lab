@@ -8,9 +8,10 @@ module  add4( sum, co, a, b, ci);
 
   // FILL HERE
   wire [2:0] carries; // save an array of carries from each fulladder operation
-  //for each bit of the sum, we are adding the respective a+b bits and including the carry from the previos bit
+  //for each bit of the sum, we are adding the respective a+b bits
+  // and including the carry from the previos bit
   fulladder adder1(sum[0], carries[0], a[0], b[0], ci);
-  fulladder adder2(sum[1], carries[1], a[1], b[2], carries[0]);
-  fulladder adder3(sum[2], carries[2], a[2], b[3], carries[1]);
-  fulladder adder4(sum[3], co, a[3], b[4], carries[2]);
+  fulladder adder2(sum[1], carries[1], a[1], b[1], carries[0]);
+  fulladder adder3(sum[2], carries[2], a[2], b[2], carries[1]);
+  fulladder adder4(sum[3], co, a[3], b[3], carries[2]);
 endmodule

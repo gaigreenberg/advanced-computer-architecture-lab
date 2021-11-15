@@ -1,3 +1,4 @@
+`include "addsub.v"
 module	addsub_tb;
 	
 	// for DUT port connection
@@ -11,7 +12,7 @@ module	addsub_tb;
 	reg					overflow;
 	wire	[3:0]	expect_out = expect[3:0];	// compare "expect_out" with "result"
 
-	// FILL here
+	addsub addsub(result, operand_a, operand_b, mode);
 
 	// give stimulus pattern
 	initial begin
