@@ -14,14 +14,27 @@ module parity(clk, in, reset, out);
 	  state <= zero;
 	else
 	  case (state)
-	    // FILL HERE
+	    // FILL HERE - done 
+      one: state <= ~ in ;
+
+      zero: state <= in ;
+
+      default:
+        state <= one ; //on start there was 0 ones - even number
+        
 	  endcase
      end
 
    always @(state) 
      begin
 	case (state)
-	    // FILL HERE
+	    // FILL HERE - done 
+      one: out <= 1 ;
+
+      zero: out <= 0 ;
+
+      default: out <= 1 ;
+
 	endcase
      end
 
