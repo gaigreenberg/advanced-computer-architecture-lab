@@ -1,8 +1,8 @@
 /***********************************
  * TOP module
  **********************************/
- `include "sp.v"
- 
+ //`include "sp.v"
+
 module top;
 
    reg clk, reset, start;

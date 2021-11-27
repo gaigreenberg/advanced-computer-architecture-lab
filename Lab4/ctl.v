@@ -1,5 +1,5 @@
 `include "defines.vh"
-`include "top.v"
+//`include "top.v"
 /***********************************
  * CTL module
  **********************************/
@@ -189,6 +189,8 @@ module CTL(
 			`CTL_STATE_EXEC0: begin
 				if (opcode!=`LD && opcode!=`ST && opcode!=`HLT) //handle all alu operations
 	     			aluout <= aluout_wire;
+				else
+					
 	     		ctl_state <= `CTL_STATE_EXEC1;
 			end
 

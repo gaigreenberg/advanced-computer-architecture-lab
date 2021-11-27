@@ -1,7 +1,7 @@
 /***********************************
  * SRAM testbench
  ***********************************/
- `include "sram.v"
+ //`include "sram.v"
  
 module top;
 
