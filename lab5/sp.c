@@ -392,9 +392,8 @@ void move_exec1(sp_t* sp, int alu0, int alu1) {
 	sprn->exec1_immediate = spro->exec0_immediate;
 }
 
-void handle_flush_pipe(sp_t* sp, int new_pc) {
-	sp_registers_t* sprn = sp->sprn;
-
+void handle_flush_pipe(sp_registers_t* sprn, int new_pc) {
+	
 	sprn->exec0_active = 0;
 	sprn->exec1_active = 0;
 	sprn->dec0_active = 0;
@@ -462,7 +461,14 @@ void handle_branch(sp_t* sp) {
 	}
 	if (flush_pipe == 1)
 	{
-		handle_flush_pipe(sp, new_pc);
+		printf("cycle:%d   newPc:%d\n", spro->cycle_counter, new_pc);
+		sprn->exec0_active = 0;
+		sprn->exec1_active = 0;
+		sprn->dec0_active = 0;
+		sprn->dec1_active = 0;
+		sprn->fetch0_active = 1; // loading correct instruction
+		sprn->fetch1_active = 0;
+		sprn->fetch0_pc = new_pc;
 	}
 
 }
@@ -853,7 +859,7 @@ static void sp_ctl(sp_t *sp)
 
 			}
 
-			if ((spro->exec1_opcode >= JLT && spro->exec1_opcode <= JNE) || spro->exec1_opcode == JIN) {
+			if (brach_op(spro->exec1_opcode) || spro->exec1_opcode == JIN) {
 				handle_branch(sp);
 
 			}
